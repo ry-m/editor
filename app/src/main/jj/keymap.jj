@@ -1,0 +1,174 @@
+PARSER_BEGIN(KeyMapParser)
+
+package texteditor;
+
+import java.io.*;
+import java.util.*;
+import texteditor.app.model.*;
+
+public class KeyMapParser 
+{
+  public static List<KeyMapping> parse(InputStream stream) 
+    throws IOException, ParseException {
+    KeyMapParser p = new KeyMapParser(stream); 
+    return p.dsl(); 
+  }
+}
+
+PARSER_END(KeyMapParser)
+
+SKIP: { 
+      " " 
+    | "\t" 
+    | "\r" 
+}
+
+TOKEN: { 
+      < NEWLINE: "\n" >
+    | < INSERT: "insert" > 
+    | < DELETE: "delete" > 
+    | < AT: "at" >
+    | < ALT: "alt" >
+    | < CTRL: "ctrl" >
+    | < SHIFT: "shift" >
+    | < PLUS: "+" >
+    | < EQUALS: "=" >
+    | < LOWERCASE: ["a"-"z"] >
+    | < CARET: "caret" >
+    | < START: "start" >
+    | < OF: "of" >
+    | < LINE: "line" >
+    | < STR_LITERAL: "\"" (~["\""])* "\"" >
+}
+
+List<KeyMapping> dsl(): 
+{
+  List<KeyMapping> mappings = new ArrayList<KeyMapping>();
+}
+{
+  { mappings.add(stmt()); } 
+  ( < NEWLINE > { mappings.add(stmt()); } )*
+  < EOF >
+  {
+    return mappings;
+  }
+}
+
+KeyMapping stmt(): 
+{
+  KeyCombo combo; 
+  KeyAction action; 
+  KeyMapping mapping;
+}
+{
+  { combo = keyCombo(); }
+  < EQUALS > 
+  { action = keyAction(); }
+  {
+    mapping = new KeyMapping(combo, action);
+    return mapping;
+  }
+
+}
+
+KeyAction keyAction():
+{
+  KeyAction.KeyActionType type; 
+  KeyAction.KeyActionPosition pos; 
+  String text; 
+  KeyAction action; 
+}
+{
+  ( 
+    < INSERT > 
+    { type = KeyAction.KeyActionType.ACTION_INSERT; } 
+    | < DELETE > 
+    { type = KeyAction.KeyActionType.ACTION_DELETE; } 
+  ) 
+
+  { text = str(); }
+
+  < AT > 
+
+  ( 
+    ( < START > < OF > < LINE > ) { pos = KeyAction.KeyActionPosition.LINE_START; } 
+    | < CARET > { pos = KeyAction.KeyActionPosition.AT_CARET; } 
+  )
+
+  {
+    action = new KeyAction(type, pos, text); 
+    return action;
+  }
+}
+
+KeyCombo keyCombo():
+{
+  KeyCombo combo = new KeyCombo('a'); 
+  KeyModifier modifier; 
+  char letter = 'a';
+}
+{
+  ( 
+    modifier = modifier() < PLUS > { combo.addModifier(modifier); } 
+  )+
+
+  letter = letter() { combo.setLetter(letter); }
+
+  {
+    return combo; 
+  }
+}
+
+KeyModifier modifier():
+{
+  KeyModifier modifier; 
+}
+{
+  ( modifier = alt() | modifier = ctrl() | modifier = shift() )
+  {
+    return modifier; 
+  }
+}
+
+KeyModifier alt():
+{
+}
+{
+  < ALT > { return KeyModifier.KEY_ALT; }
+}
+
+KeyModifier ctrl():
+{
+}
+{
+  < CTRL > { return KeyModifier.KEY_CTRL; }
+}
+
+KeyModifier shift():
+{
+}
+{
+  < SHIFT > { return KeyModifier.KEY_SHIFT; }
+}
+
+String str():
+{
+  Token t; 
+}
+{
+  ( t = < STR_LITERAL > )
+  {
+    return t.image.substring(1, t.image.length() - 1);
+  }
+}
+
+char letter():
+{
+  Token t; 
+}
+{
+  ( t = < LOWERCASE > )
+  {
+    return t.image.charAt(0);
+  }
+}
